@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-nextddl}
+      - POSTGRES_USER=${POSTGRES_USER:-nextddl}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nextddl}
+    ports:
+      - "5432:5432"
+    volumes:
+      - nextddl_db:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        NEXT_PUBLIC_CASDOOR_SERVER_URL: ${NEXT_PUBLIC_CASDOOR_SERVER_URL}
+        NEXT_PUBLIC_CASDOOR_CLIENT_ID: ${NEXT_PUBLIC_CASDOOR_CLIENT_ID}
+        NEXT_PUBLIC_CASDOOR_CLIENT_SECRET: ${NEXT_PUBLIC_CASDOOR_CLIENT_SECRET}
+        NEXT_PUBLIC_CASDOOR_ORG_NAME: ${NEXT_PUBLIC_CASDOOR_ORG_NAME}
+        NEXT_PUBLIC_CASDOOR_APP_NAME: ${NEXT_PUBLIC_CASDOOR_APP_NAME}
+        NEXT_PUBLIC_CASDOOR_REDIRECT_URI: ${NEXT_PUBLIC_CASDOOR_REDIRECT_URI}
+        NEXT_PUBLIC_CASDOOR_SIGNIN_URL: ${NEXT_PUBLIC_CASDOOR_SIGNIN_URL}
+        NEXT_PUBLIC_CASDOOR_BASE_URL: ${NEXT_PUBLIC_CASDOOR_BASE_URL}
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - PYTHON_API_BASE_URL=http://api:5000
+      - SESSION_SECRET=${SESSION_SECRET}
+      - PLATFORM_SESSION_SECRET=${PLATFORM_SESSION_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  nextddl_db:

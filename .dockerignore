@@ -1,0 +1,11 @@
+.DS_Store
+.git
+.gitignore
+.next
+node_modules
+coverage
+*.log
+.env*
+*.tar
+*.tgz
+nextddl-images/

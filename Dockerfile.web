@@ -1,0 +1,40 @@
+FROM node:20-alpine AS base
+WORKDIR /app
+
+FROM base AS deps
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+FROM base AS build
+RUN corepack enable
+ARG NEXT_PUBLIC_CASDOOR_SERVER_URL
+ARG NEXT_PUBLIC_CASDOOR_CLIENT_ID
+ARG NEXT_PUBLIC_CASDOOR_CLIENT_SECRET
+ARG NEXT_PUBLIC_CASDOOR_ORG_NAME
+ARG NEXT_PUBLIC_CASDOOR_APP_NAME
+ARG NEXT_PUBLIC_CASDOOR_REDIRECT_URI
+ARG NEXT_PUBLIC_CASDOOR_SIGNIN_URL
+ARG NEXT_PUBLIC_CASDOOR_BASE_URL
+ENV NEXT_PUBLIC_CASDOOR_SERVER_URL=$NEXT_PUBLIC_CASDOOR_SERVER_URL \
+    NEXT_PUBLIC_CASDOOR_CLIENT_ID=$NEXT_PUBLIC_CASDOOR_CLIENT_ID \
+    NEXT_PUBLIC_CASDOOR_CLIENT_SECRET=$NEXT_PUBLIC_CASDOOR_CLIENT_SECRET \
+    NEXT_PUBLIC_CASDOOR_ORG_NAME=$NEXT_PUBLIC_CASDOOR_ORG_NAME \
+    NEXT_PUBLIC_CASDOOR_APP_NAME=$NEXT_PUBLIC_CASDOOR_APP_NAME \
+    NEXT_PUBLIC_CASDOOR_REDIRECT_URI=$NEXT_PUBLIC_CASDOOR_REDIRECT_URI \
+    NEXT_PUBLIC_CASDOOR_SIGNIN_URL=$NEXT_PUBLIC_CASDOOR_SIGNIN_URL \
+    NEXT_PUBLIC_CASDOOR_BASE_URL=$NEXT_PUBLIC_CASDOOR_BASE_URL
+COPY --from=deps /app/node_modules /app/node_modules
+COPY . .
+RUN pnpm build
+
+FROM base AS runner
+ENV NODE_ENV=production
+RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+USER nextjs
+COPY --from=build /app/public /app/public
+COPY --from=build /app/.next /app/.next
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/package.json /app/package.json
+EXPOSE 3000
+CMD ["node", "node_modules/next/dist/bin/next", "start"]

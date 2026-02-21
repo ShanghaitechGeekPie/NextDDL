@@ -1,0 +1,13 @@
+declare namespace NodeJS {
+  interface ProcessEnv {
+    NEXT_PUBLIC_CASDOOR_SERVER_URL: string;
+    NEXT_PUBLIC_CASDOOR_CLIENT_ID: string;
+    NEXT_PUBLIC_CASDOOR_CLIENT_SECRET: string;
+    NEXT_PUBLIC_CASDOOR_ORG_NAME: string;
+    NEXT_PUBLIC_CASDOOR_APP_NAME: string;
+    NEXT_PUBLIC_CASDOOR_REDIRECT_URI: string;
+    NEXT_PUBLIC_CASDOOR_SIGNIN_URL: string;
+    NEXT_PUBLIC_CASDOOR_BASE_URL: string;
+  }
+}
+export {};
