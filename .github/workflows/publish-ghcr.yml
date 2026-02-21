@@ -1,0 +1,103 @@
+name: Publish Images to GHCR
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_WEB: ghcr.io/shanghaitechgeekpie/nextddl-web
+      IMAGE_API: ghcr.io/shanghaitechgeekpie/nextddl-api
+      NEXT_PUBLIC_CASDOOR_SERVER_URL: ${{ secrets.NEXT_PUBLIC_CASDOOR_SERVER_URL }}
+      NEXT_PUBLIC_CASDOOR_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_CASDOOR_CLIENT_ID }}
+      NEXT_PUBLIC_CASDOOR_CLIENT_SECRET: ${{ secrets.NEXT_PUBLIC_CASDOOR_CLIENT_SECRET }}
+      NEXT_PUBLIC_CASDOOR_ORG_NAME: ${{ secrets.NEXT_PUBLIC_CASDOOR_ORG_NAME }}
+      NEXT_PUBLIC_CASDOOR_APP_NAME: ${{ secrets.NEXT_PUBLIC_CASDOOR_APP_NAME }}
+      NEXT_PUBLIC_CASDOOR_REDIRECT_URI: ${{ secrets.NEXT_PUBLIC_CASDOOR_REDIRECT_URI }}
+      NEXT_PUBLIC_CASDOOR_SIGNIN_URL: ${{ secrets.NEXT_PUBLIC_CASDOOR_SIGNIN_URL }}
+      NEXT_PUBLIC_CASDOOR_BASE_URL: ${{ secrets.NEXT_PUBLIC_CASDOOR_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate NEXT_PUBLIC build secrets
+        run: |
+          required=(
+            NEXT_PUBLIC_CASDOOR_SERVER_URL
+            NEXT_PUBLIC_CASDOOR_CLIENT_ID
+            NEXT_PUBLIC_CASDOOR_CLIENT_SECRET
+            NEXT_PUBLIC_CASDOOR_ORG_NAME
+            NEXT_PUBLIC_CASDOOR_APP_NAME
+            NEXT_PUBLIC_CASDOOR_REDIRECT_URI
+            NEXT_PUBLIC_CASDOOR_SIGNIN_URL
+            NEXT_PUBLIC_CASDOOR_BASE_URL
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Metadata (web)
+        id: meta_web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_WEB }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push (web)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ${{ steps.meta_web.outputs.tags }}
+          labels: ${{ steps.meta_web.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_CASDOOR_SERVER_URL=${{ env.NEXT_PUBLIC_CASDOOR_SERVER_URL }}
+            NEXT_PUBLIC_CASDOOR_CLIENT_ID=${{ env.NEXT_PUBLIC_CASDOOR_CLIENT_ID }}
+            NEXT_PUBLIC_CASDOOR_CLIENT_SECRET=${{ env.NEXT_PUBLIC_CASDOOR_CLIENT_SECRET }}
+            NEXT_PUBLIC_CASDOOR_ORG_NAME=${{ env.NEXT_PUBLIC_CASDOOR_ORG_NAME }}
+            NEXT_PUBLIC_CASDOOR_APP_NAME=${{ env.NEXT_PUBLIC_CASDOOR_APP_NAME }}
+            NEXT_PUBLIC_CASDOOR_REDIRECT_URI=${{ env.NEXT_PUBLIC_CASDOOR_REDIRECT_URI }}
+            NEXT_PUBLIC_CASDOOR_SIGNIN_URL=${{ env.NEXT_PUBLIC_CASDOOR_SIGNIN_URL }}
+            NEXT_PUBLIC_CASDOOR_BASE_URL=${{ env.NEXT_PUBLIC_CASDOOR_BASE_URL }}
+
+      - name: Metadata (api)
+        id: meta_api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_API }}
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      - name: Build and push (api)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: ${{ steps.meta_api.outputs.tags }}
+          labels: ${{ steps.meta_api.outputs.labels }}
