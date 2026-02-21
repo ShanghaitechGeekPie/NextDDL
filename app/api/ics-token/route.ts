@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { getCurrentUser } from "@/lib/auth";
 import { pool } from "@/lib/db";
+import { getPublicOrigin } from "@/lib/public-origin";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const origin = new URL(request.url).origin;
+  const origin = getPublicOrigin(request);
   const url = `${origin}/api/ics/${token}`;
 
   return NextResponse.json({ token, url });
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     [user.id, token]
   );
 
-  const origin = new URL(request.url).origin;
+  const origin = getPublicOrigin(request);
   const url = `${origin}/api/ics/${token}`;
 
   return NextResponse.json({ token, url });

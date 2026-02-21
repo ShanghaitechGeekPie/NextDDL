@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { randomUUID } from "crypto";
+import { getPublicOrigin } from "@/lib/public-origin";
 
 type CasdoorUserInfo = {
   id?: string;
@@ -36,9 +37,9 @@ function getCasdoorConfig() {
   return { serverUrl, clientId, clientSecret, redirectPath };
 }
 
-async function exchangeCodeForToken(code: string, requestUrl: string) {
+async function exchangeCodeForToken(code: string, origin: string) {
   const { serverUrl, clientId, clientSecret, redirectPath } = getCasdoorConfig();
-  const redirectUri = new URL(redirectPath, requestUrl).toString();
+  const redirectUri = new URL(redirectPath, origin).toString();
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
@@ -55,12 +56,13 @@ async function exchangeCodeForToken(code: string, requestUrl: string) {
 
   const tokenJson = (await tokenRes.json()) as CasdoorTokenResponse;
   const accessToken = tokenJson.access_token ?? tokenJson.accessToken;
+  const expiresIn = Number(tokenJson.expires_in);
 
   if (!tokenRes.ok || !accessToken) {
     throw new Error(tokenJson.error_description || tokenJson.error || "Failed to exchange token");
   }
 
-  return accessToken;
+  return { accessToken, expiresIn: Number.isFinite(expiresIn) ? expiresIn : null };
 }
 
 async function fetchCasdoorUser(accessToken: string) {
@@ -105,41 +107,38 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
-  const accessToken = await exchangeCodeForToken(code, request.url);
+  const origin = getPublicOrigin(request);
+  const { accessToken, expiresIn } = await exchangeCodeForToken(code, origin);
   const casdoorUserInfo = await fetchCasdoorUser(accessToken);
   const casdoorUser = normalizeCasdoorUser(casdoorUserInfo);
 
-  let user = await pool.query(
-    "select * from users where geekpie_id = $1",
-    [casdoorUser.id]
+  const user = await pool.query(
+    `
+    insert into users (geekpie_id, nickname, avatar_url)
+    values ($1, $2, $3)
+    on conflict (geekpie_id)
+    do update set nickname = excluded.nickname, avatar_url = excluded.avatar_url
+    returning *
+    `,
+    [casdoorUser.id, casdoorUser.name || null, casdoorUser.avatar || null]
   );
-
-  if (user.rows.length === 0) {
-    user = await pool.query(
-      `
-      insert into users (geekpie_id, nickname, avatar_url)
-      values ($1,$2,$3)
-      returning *
-      `,
-      [casdoorUser.id, casdoorUser.name, casdoorUser.avatar]
-    );
-  }
 
   const userId = user.rows[0].id;
 
   const sessionId = randomUUID();
   const expires = new Date();
   expires.setDate(expires.getDate() + 7);
+  const casdoorExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
 
   await pool.query(
     `
-    insert into sessions (id, user_id, expires_at)
-    values ($1,$2,$3)
+    insert into sessions (id, user_id, expires_at, casdoor_access_token, casdoor_expires_at)
+    values ($1,$2,$3,$4,$5)
     `,
-    [sessionId, userId, expires]
+    [sessionId, userId, expires, accessToken, casdoorExpiresAt]
   );
 
-  const response = NextResponse.redirect(new URL("/", request.url));
+  const response = NextResponse.redirect(new URL("/", origin));
 
   response.cookies.set("session", sessionId, {
     httpOnly: true,

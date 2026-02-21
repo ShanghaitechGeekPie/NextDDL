@@ -15,19 +15,11 @@ CREATE TABLE IF NOT EXISTS public.sessions (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid,
   expires_at timestamp with time zone NOT NULL,
+  casdoor_access_token text,
+  casdoor_expires_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT sessions_pkey PRIMARY KEY (id),
   CONSTRAINT sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
-);
-
-CREATE TABLE IF NOT EXISTS public.platform_accounts (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid,
-  platform text NOT NULL,
-  username text,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT platform_accounts_pkey PRIMARY KEY (id),
-  CONSTRAINT platform_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 
 CREATE TABLE IF NOT EXISTS public.platform_sessions (

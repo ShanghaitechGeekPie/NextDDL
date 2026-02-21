@@ -41,6 +41,7 @@ services:
       - PYTHON_API_BASE_URL=http://api:5000
       - SESSION_SECRET=${SESSION_SECRET}
       - PLATFORM_SESSION_SECRET=${PLATFORM_SESSION_SECRET}
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
     ports:
       - "3000:3000"
     depends_on:

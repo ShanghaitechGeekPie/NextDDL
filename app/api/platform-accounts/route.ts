@@ -102,20 +102,7 @@ export async function POST(request: Request) {
         )
       }
 
-      await client.query(
-        `delete from platform_accounts where user_id = $1 and platform = $2`,
-        [user.id, item.platform]
-      )
-
-      if (identifier) {
-        await client.query(
-          `
-          insert into platform_accounts (user_id, platform, username)
-          values ($1, $2, $3)
-          `,
-          [user.id, item.platform, identifier]
-        )
-      }
+      void identifier
     }
 
     await client.query('commit')

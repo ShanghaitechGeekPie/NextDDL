@@ -91,6 +91,7 @@ export default function SettingsClient({ user }: SettingsClientProps) {
     load()
   }, [])
 
+
   const openDialog = (platformName: string) => {
     setEditingPlatform(platformName)
     setFormData({})
@@ -182,6 +183,27 @@ export default function SettingsClient({ user }: SettingsClientProps) {
     }
   }
 
+  const handleSyncProfile = async () => {
+    try {
+      const res = await fetch('/api/sync-profile', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = data?.error || '同步失败'
+        if (res.status === 409) {
+          toast.error(`${message}，请重新登录后重试`)
+        } else {
+          toast.error(message)
+        }
+        return
+      }
+      toast.success('个人资料已同步')
+      router.refresh()
+    } catch (error) {
+      console.error(error)
+      toast.error('同步失败')
+    }
+  }
+
   const platform = editingPlatform ? PLATFORMS.find((p) => p.name === editingPlatform) : null
 
   return (
@@ -201,18 +223,23 @@ export default function SettingsClient({ user }: SettingsClientProps) {
           <Card>
             <CardHeader>
               <CardTitle>账号管理</CardTitle>
-              <CardDescription>前往 Geekpie Uni-Auth 管理页面</CardDescription>
+              <CardDescription>前往 Geekpie Uni-Auth 管理页面或同步个人资料</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild>
-                <a
-                  href="https://auth.geekpie.club/account"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  管理 Geekpie 账号
-                </a>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild>
+                  <a
+                    href="https://auth.geekpie.club/account"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    管理 Geekpie 账号
+                  </a>
+                </Button>
+                <Button variant="outline" onClick={handleSyncProfile}>
+                  同步个人资料
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

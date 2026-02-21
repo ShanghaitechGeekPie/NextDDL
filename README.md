@@ -32,6 +32,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/nextddl
 PYTHON_API_BASE_URL=http://127.0.0.1:5000
 SESSION_SECRET=change-me
 PLATFORM_SESSION_SECRET=change-me
+PUBLIC_BASE_URL=http://localhost:3000
 
 NEXT_PUBLIC_CASDOOR_SERVER_URL=https://your-casdoor-server.example.com
 NEXT_PUBLIC_CASDOOR_CLIENT_ID=your-client-id
@@ -46,6 +47,7 @@ NEXT_PUBLIC_CASDOOR_BASE_URL=https://your-casdoor-server.example.com
 Notes:
 - NEXT_PUBLIC_* are injected at build time.
 - For container networking, use db and api hostnames instead of localhost.
+- Set PUBLIC_BASE_URL to the externally reachable URL (LAN or server domain) to generate correct callback and ICS links.
 
 ## Local Development
 
@@ -55,7 +57,13 @@ Notes:
 pnpm install
 ```
 
-2) Start PostgreSQL (local or container), then run migrations
+2) Install Python dependencies
+
+```
+python -m pip install -r requirements.txt
+```
+
+3) Start PostgreSQL (local or container), then run migrations
 
 If you use the SQL initializer:
 
@@ -63,13 +71,13 @@ If you use the SQL initializer:
 psql -d nextddl -f scripts/init.sql
 ```
 
-3) Start the Python API
+4) Start the Python API
 
 ```
-python api/index.py
+python -m api.index  
 ```
 
-4) Start the Next.js app
+5) Start the Next.js app
 
 ```
 pnpm dev
@@ -96,6 +104,7 @@ Create a .env file in the project root and set values (examples):
 DATABASE_URL=postgresql://nextddl:nextddl@db:5432/nextddl
 SESSION_SECRET=change-me
 PLATFORM_SESSION_SECRET=change-me
+PUBLIC_BASE_URL=https://your-domain.example.com
 
 NEXT_PUBLIC_CASDOOR_SERVER_URL=https://your-casdoor-server.example.com
 NEXT_PUBLIC_CASDOOR_CLIENT_ID=your-client-id

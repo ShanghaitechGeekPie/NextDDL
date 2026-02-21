@@ -179,7 +179,7 @@ export default function HomeClient({ user }: HomeClientProps) {
 
   const handleLogout = async () => {
     try {
-      Cookies.remove('session')
+      await fetch('/api/logout', { method: 'POST' })
       router.push('/login')
     } catch (error) {
       console.error('Logout failed:', error)
@@ -556,7 +556,7 @@ export default function HomeClient({ user }: HomeClientProps) {
           )}
 
           {/* Info + Timeline */}
-          <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 lg:flex-row">
+          <div className="w-full max-w-6xl mx-auto flex flex-col gap-6 lg:flex-row lg:items-start">
             <Card className="overflow-hidden flex-1 min-w-0">
               <CardHeader>
                 <CardTitle>DDL面板</CardTitle>
