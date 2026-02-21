@@ -654,7 +654,17 @@ export default function HomeClient({ user }: HomeClientProps) {
                         variant="outline"
                         onClick={async () => {
                           try {
-                            await navigator.clipboard.writeText(icsUrl)
+                            if (navigator.clipboard?.writeText) {
+                              await navigator.clipboard.writeText(icsUrl)
+                            } else {
+                              const input = document.createElement('input')
+                              input.value = icsUrl
+                              document.body.appendChild(input)
+                              input.select()
+                              input.setSelectionRange(0, input.value.length)
+                              document.execCommand('copy')
+                              document.body.removeChild(input)
+                            }
                             toast.success('订阅链接已复制')
                           } catch (error) {
                             console.error(error)
@@ -664,6 +674,9 @@ export default function HomeClient({ user }: HomeClientProps) {
                       >
                         复制订阅链接
                       </Button>
+                      <p className="w-full text-xs text-slate-500">
+                        Apple设备对webcal跳转兼容较好，Android用户请复制链接后在日历App中手动添加
+                      </p>
                     </div>
                   )}
                 </CardContent>
