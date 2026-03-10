@@ -52,6 +52,10 @@ interface SettingsClientProps {
 
 export default function SettingsClient({ user }: SettingsClientProps) {
   const router = useRouter()
+  const casdoorServerUrl = process.env.NEXT_PUBLIC_CASDOOR_SERVER_URL
+  const casdoorAccountUrl = casdoorServerUrl
+    ? `${casdoorServerUrl.replace(/\/+$/, '')}/account`
+    : 'https://auth.geekpie.club/account'
   const [configuredPlatforms, setConfiguredPlatforms] = useState<Set<string>>(new Set())
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
@@ -229,7 +233,7 @@ export default function SettingsClient({ user }: SettingsClientProps) {
               <div className="flex flex-wrap gap-3">
                 <Button asChild>
                   <a
-                    href="https://auth.geekpie.club/account"
+                    href={casdoorAccountUrl}
                     target="_blank"
                     rel="noreferrer"
                   >

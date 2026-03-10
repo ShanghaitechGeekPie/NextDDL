@@ -139,10 +139,12 @@ export async function GET(request: Request) {
   );
 
   const response = NextResponse.redirect(new URL("/", origin));
+  const secureCookie = process.env.PUBLIC_BASE_URL?.startsWith("https://") ??
+    process.env.NODE_ENV === "production";
 
   response.cookies.set("session", sessionId, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     sameSite: "lax",
     expires,
   });

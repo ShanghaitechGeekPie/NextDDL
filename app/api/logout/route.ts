@@ -10,10 +10,12 @@ export async function POST() {
     await pool.query("delete from sessions where id = $1", [sessionCookie.value]);
   }
 
+  const secureCookie = process.env.PUBLIC_BASE_URL?.startsWith("https://") ??
+    process.env.NODE_ENV === "production";
   const response = NextResponse.json({ ok: true });
   response.cookies.set("session", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     sameSite: "lax",
     expires: new Date(0),
   });

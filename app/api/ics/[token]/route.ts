@@ -26,7 +26,13 @@ function toIcsEvents(rows: Array<{ title: string | null; course: string | null; 
         due.getHours(),
         due.getMinutes(),
       ],
-      duration: { hours: 1 },
+      end: [
+        due.getFullYear(),
+        due.getMonth() + 1,
+        due.getDate(),
+        due.getHours(),
+        due.getMinutes(),
+      ],
     } as EventAttributes;
   }).filter(Boolean) as EventAttributes[];
 
