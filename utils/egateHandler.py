@@ -12,6 +12,8 @@ headers = {
     "sec-ch-ua-platform": '"Windows"',
 }
 
+REQUEST_TIMEOUT = (5, 20)
+
 
 def collect_data(text, name, endtag):
     start_idx = text.find(f'name="{name}"')
@@ -27,7 +29,7 @@ def login(studentid: str, password: str) -> requests.Session:
     url = r"https://ids.shanghaitech.edu.cn/authserver/login?service=https%3A%2F%2Felearning.shanghaitech.edu.cn%3A8443%2Fwebapps%2Fbb-BB-BBLEARN%2Findex.jsp"
     new_session = requests.session()
     new_session.cookies.clear()
-    response = new_session.get(url)
+    response = new_session.get(url, timeout=REQUEST_TIMEOUT)
     lt = collect_data(response.text, "lt", r"/>")
     dllt = "generalLogin"
     execution = collect_data(response.text, "execution", r"/>")
@@ -49,12 +51,26 @@ def login(studentid: str, password: str) -> requests.Session:
         "_eventId": _eventId,
         "rmShown": rmShown,
     }
-    response = new_session.post(url, data=data, headers=headers, verify=False, allow_redirects=True)
+    response = new_session.post(
+        url,
+        data=data,
+        headers=headers,
+        verify=False,
+        allow_redirects=True,
+        timeout=REQUEST_TIMEOUT,
+    )
     xml_result = response.text
     soup = BeautifulSoup(xml_result, "html.parser")
     inputs = soup.find_all("input")
     input_data = {inp.get("name"): inp.get("value") for inp in inputs if inp.get("name")}
-    response = new_session.post("https://elearning.shanghaitech.edu.cn:8443/webapps/bb-sso-BBLEARN/execute/authValidate/customLogin", data=input_data, headers=headers, verify=False, allow_redirects=True)
+    response = new_session.post(
+        "https://elearning.shanghaitech.edu.cn:8443/webapps/bb-sso-BBLEARN/execute/authValidate/customLogin",
+        data=input_data,
+        headers=headers,
+        verify=False,
+        allow_redirects=True,
+        timeout=REQUEST_TIMEOUT,
+    )
     return new_session
 
 
@@ -65,6 +81,7 @@ def getBB(sess: requests.Session):
         + str(int(datetime.now().timestamp()) * 1000),
         headers=headers,
         verify=False,
+        timeout=REQUEST_TIMEOUT,
     )
 
     assert response.status_code == 200, f"Login failed ({response.status_code}), please check your credentials."
@@ -98,6 +115,7 @@ def getBB(sess: requests.Session):
         "https://elearning.shanghaitech.edu.cn:8443/webapps/calendar/calendarData/pastDueEvents",
         headers=headers,
         verify=False,
+        timeout=REQUEST_TIMEOUT,
     ).json()
 
     for item in response:
