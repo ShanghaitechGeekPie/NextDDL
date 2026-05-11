@@ -751,7 +751,7 @@ export default function HomeClient({ user }: HomeClientProps) {
                     <div>
                       <h3 className="font-semibold text-slate-800 dark:text-slate-200">Next DDL可以...</h3>
                       <ul className="list-disc pl-5 mt-2 space-y-1">
-                        <li>统一抓取多平台作业截止日期（Hydro、Gradescope、Blackboard）并集中展示</li>
+                        <li>统一抓取多平台作业截止日期(Hydro、Gradescope、Blackboard)并集中展示</li>
                         <li>支持手动添加DDL并修改</li>
                         <li>支持日历订阅，可导入系统日历，并设置定期更新</li>
                       </ul>
@@ -759,8 +759,8 @@ export default function HomeClient({ user }: HomeClientProps) {
                     <div>
                       <h3 className="font-semibold text-slate-800 dark:text-slate-200">Next DDL如何保证您的数据安全...</h3>
                       <ul className="list-disc pl-5 mt-2 space-y-1">
-                          <li>平台凭据可按配置方式保存为 Session 或账号密码，敏感数据不会明文存储</li>
-                          <li>账号密码模式使用 RSA 公钥 + AES-256-GCM 封装后入库，私钥仅存于服务端敏感环境变量</li>
+                          <li>平台凭据可按配置方式保存为 Session 或账号密码, 并可随时删除, 敏感数据不会明文存储</li>
+                          <li>账号密码模式使用 RSA 公钥 + AES-256-GCM 封装后入库, 私钥仅存于Vercel Sensitive Environment Variables, 加密存储且不可读取</li>
                           <li>用户标识会在加盐哈希后作为键进行存储映射，无法直接反查原始用户 ID</li>
                       </ul>
                     </div>
