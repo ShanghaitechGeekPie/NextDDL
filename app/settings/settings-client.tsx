@@ -50,6 +50,8 @@ interface SettingsClientProps {
   user: User
 }
 
+type AuthMode = 'session' | 'credentials'
+
 export default function SettingsClient({ user }: SettingsClientProps) {
   const router = useRouter()
   const casdoorServerUrl = process.env.NEXT_PUBLIC_CASDOOR_SERVER_URL
@@ -59,7 +61,10 @@ export default function SettingsClient({ user }: SettingsClientProps) {
   const [configuredPlatforms, setConfiguredPlatforms] = useState<Set<string>>(new Set())
   const [editingPlatform, setEditingPlatform] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, string>>({})
+  const [platformAuthMode, setPlatformAuthMode] = useState<Record<string, AuthMode>>({})
+  const [editingAuthMode, setEditingAuthMode] = useState<AuthMode>('session')
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [retentionDays, setRetentionDays] = useState<string>('30')
   const [savingRetention, setSavingRetention] = useState(false)
 
@@ -74,12 +79,15 @@ export default function SettingsClient({ user }: SettingsClientProps) {
         if (platformRes.ok) {
           const data = await platformRes.json()
           const configured = new Set<string>()
+          const modeMap: Record<string, AuthMode> = {}
           for (const item of data.items ?? []) {
             if (item.configured) {
               configured.add(item.platform)
             }
+            modeMap[item.platform] = item.authMode === 'credentials' ? 'credentials' : 'session'
           }
           setConfiguredPlatforms(configured)
+          setPlatformAuthMode(modeMap)
         }
 
         if (settingsRes.ok) {
@@ -99,11 +107,13 @@ export default function SettingsClient({ user }: SettingsClientProps) {
   const openDialog = (platformName: string) => {
     setEditingPlatform(platformName)
     setFormData({})
+    setEditingAuthMode(platformAuthMode[platformName] ?? 'session')
   }
 
   const closeDialog = () => {
     setEditingPlatform(null)
     setFormData({})
+    setEditingAuthMode('session')
   }
 
   const handleFieldChange = (fieldName: string, value: string) => {
@@ -124,6 +134,7 @@ export default function SettingsClient({ user }: SettingsClientProps) {
           items: [{
             platform: platform.name,
             identifierField: platform.identifierField,
+            authMode: editingAuthMode,
             fields: formData
           }]
         })
@@ -132,6 +143,7 @@ export default function SettingsClient({ user }: SettingsClientProps) {
       if (!res.ok) throw new Error('Failed to save')
 
       setConfiguredPlatforms((prev) => new Set(prev).add(editingPlatform))
+      setPlatformAuthMode((prev) => ({ ...prev, [editingPlatform]: editingAuthMode }))
 
       let refreshOk = false
       try {
@@ -155,6 +167,46 @@ export default function SettingsClient({ user }: SettingsClientProps) {
       toast.error('保存失败')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!editingPlatform) return
+    if (!configuredPlatforms.has(editingPlatform)) {
+      toast.error('当前平台尚未配置')
+      return
+    }
+
+    if (!window.confirm(`确认删除 ${editingPlatform} 已保存的凭据吗？`)) return
+
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/platform-accounts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: editingPlatform })
+      })
+
+      if (!res.ok) throw new Error('Failed to delete')
+
+      setConfiguredPlatforms((prev) => {
+        const next = new Set(prev)
+        next.delete(editingPlatform)
+        return next
+      })
+      setPlatformAuthMode((prev) => {
+        const next = { ...prev }
+        delete next[editingPlatform]
+        return next
+      })
+
+      toast.success('已删除凭据')
+      closeDialog()
+    } catch (error) {
+      console.error(error)
+      toast.error('删除失败')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -318,6 +370,32 @@ export default function SettingsClient({ user }: SettingsClientProps) {
                 </div>
               )}
               <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>保存方式</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={editingAuthMode === 'session' ? 'default' : 'outline'}
+                      onClick={() => setEditingAuthMode('session')}
+                      className="flex-1"
+                    >
+                      保存 Session
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={editingAuthMode === 'credentials' ? 'default' : 'outline'}
+                      onClick={() => setEditingAuthMode('credentials')}
+                      className="flex-1"
+                    >
+                      保存账号密码
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {editingAuthMode === 'session'
+                      ? '仅加密保存会话，过期后需重新配置。'
+                      : '将加密保存账号密码，确保稳定获取DDL。'}
+                  </p>
+                </div>
                 {platform.fields.map((field) => (
                   <div key={field.name} className="space-y-2">
                     <Label htmlFor={field.name}>{field.label}</Label>
@@ -337,6 +415,16 @@ export default function SettingsClient({ user }: SettingsClientProps) {
                 </Button>
                 <Button variant="outline" onClick={closeDialog} className="flex-1">
                   取消
+                </Button>
+              </div>
+              <div className="mt-3">
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="w-full"
+                >
+                  {deleting ? '删除中...' : '删除凭据'}
                 </Button>
               </div>
             </div>

@@ -43,11 +43,15 @@ CREATE TABLE IF NOT EXISTS public.deadlines (
   course text,
   due_at timestamp with time zone NOT NULL,
   status text,
+  completed boolean DEFAULT false,
   url text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT deadlines_pkey PRIMARY KEY (id),
   CONSTRAINT deadlines_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+
+ALTER TABLE public.deadlines
+  ADD COLUMN IF NOT EXISTS completed boolean DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS public.ics_tokens (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

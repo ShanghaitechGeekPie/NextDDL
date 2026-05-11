@@ -21,10 +21,10 @@ export async function POST(request: Request) {
   try {
     await pool.query(
       `
-      insert into deadlines (user_id, platform, title, course, due_at, status, url)
-      values ($1, 'manual', $2, $3, to_timestamp($4), $5, $6)
+      insert into deadlines (user_id, platform, title, course, due_at, status, completed, url)
+      values ($1, 'manual', $2, $3, to_timestamp($4), $5, $6, $7)
       `,
-      [user.id, item.title, item.course, due, item.status ?? null, item.url ?? null]
+      [user.id, item.title, item.course, due, item.status ?? null, Boolean(item.completed), item.url ?? null]
     );
 
     return NextResponse.json({ ok: true });

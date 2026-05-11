@@ -26,11 +26,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const result = await pool.query(
     `
     update deadlines
-    set title = $1, course = $2, due_at = to_timestamp($3), status = $4, url = $5
-    where id = $6 and user_id = $7 and platform = 'manual'
+    set title = $1, course = $2, due_at = to_timestamp($3), status = $4, completed = coalesce($5, completed), url = $6
+    where id = $7 and user_id = $8 and platform = 'manual'
     returning id
     `,
-    [item.title, item.course, due, item.status ?? null, item.url ?? null, id, user.id]
+    [item.title, item.course, due, item.status ?? null, item.completed ?? null, item.url ?? null, id, user.id]
   );
 
   if (result.rowCount === 0) {

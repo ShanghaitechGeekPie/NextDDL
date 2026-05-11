@@ -1,15 +1,20 @@
 import "server-only";
 import { pool } from "@/lib/db";
-import { decryptJson } from "@/lib/crypto";
+import { decryptStoredPlatformDataForUser } from "@/lib/credential-vault";
+import { isSubmittedStatus } from "@/lib/deadline-status";
+import fetchPlatform from "@/lib/fetch-ddls";
 
 type Fields = Record<string, string>;
+type AuthMode = "session" | "credentials";
 type SessionData = {
+  authMode?: AuthMode;
   cookies?: Record<string, string>;
   url?: string;
 } & Record<string, unknown>;
 
 type PlatformFetchResult = {
   platform: string;
+  authMode: AuthMode;
   items: DeadlineItem[];
   expired: boolean;
   fetched: boolean;
@@ -22,13 +27,7 @@ export type DeadlineItem = {
   due: number;
   status?: string;
   url: string;
-  submitted?: boolean;
-};
-
-const PLATFORM_API: Record<string, string> = {
-  Hydro: "/api/hydro",
-  Gradescope: "/api/gradescope",
-  Blackboard: "/api/blackboard",
+  completed?: boolean;
 };
 
 const PLATFORM_REQUIRED_FIELDS: Record<string, string[]> = {
@@ -37,26 +36,13 @@ const PLATFORM_REQUIRED_FIELDS: Record<string, string[]> = {
   Blackboard: ["studentid", "password"],
 };
 
-function getPythonBaseUrl() {
-  const base = process.env.PYTHON_API_BASE_URL ||
-    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:5000" : "");
-  if (!base) {
-    throw new Error("Missing PYTHON_API_BASE_URL");
-  }
-  return base;
-}
-
 function hasRequiredFields(fields: Fields, required: string[]) {
   return required.every((key) => Boolean(fields[key]));
 }
 
 async function fetchPlatformDeadlines(platform: string, fields: Fields | SessionData): Promise<PlatformFetchResult> {
-  const api = PLATFORM_API[platform];
   const required = PLATFORM_REQUIRED_FIELDS[platform] || [];
-
-  if (!api) {
-    return { platform, items: [], expired: false, fetched: false };
-  }
+  const authMode: AuthMode = (fields as SessionData).authMode === "credentials" ? "credentials" : "session";
 
   let payload: Record<string, unknown> = {};
   if ((fields as SessionData).cookies) {
@@ -64,52 +50,46 @@ async function fetchPlatformDeadlines(platform: string, fields: Fields | Session
     if (platform === "Hydro") {
       const url = (fields as SessionData).url;
       if (!url) {
-        return { platform, items: [], expired: false, fetched: false };
+        return { platform, authMode, items: [], expired: false, fetched: false };
       }
       payload.url = url;
     }
   } else {
     if (!hasRequiredFields(fields as Fields, required)) {
-      return { platform, items: [], expired: false, fetched: false };
+      return { platform, authMode, items: [], expired: false, fetched: false };
     }
     payload = fields as Fields;
   }
 
-  const baseUrl = getPythonBaseUrl();
-  let response: Response;
   try {
-    response = await fetch(`${baseUrl}${api}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const items = await fetchPlatform(platform, payload);
+    return { platform, authMode, items, expired: false, fetched: true };
   } catch {
-    return { platform, items: [], expired: false, fetched: false };
+    const expired = authMode === "session";
+    return { platform, authMode, items: [], expired, fetched: false };
   }
-
-  if (!response.ok) {
-    return { platform, items: [], expired: false, fetched: false };
-  }
-
-  const result = await response.json();
-  if (result?.status === "session_expired") {
-    return { platform, items: [], expired: true, fetched: false };
-  }
-  if (result?.status !== "success" || !Array.isArray(result.data)) {
-    return { platform, items: [], expired: false, fetched: false };
-  }
-
-  const items = result.data.map((item: DeadlineItem) => ({
-    ...item,
-    platform,
-  }));
-  return { platform, items, expired: false, fetched: true };
 }
 
 export type RefreshResult = {
   items: DeadlineItem[];
   expiredPlatforms: string[];
 };
+
+function getDeadlineKey(item: {
+  platform?: string;
+  title?: string;
+  course?: string;
+  due?: number;
+  url?: string;
+}) {
+  return [
+    item.platform ?? "",
+    item.title ?? "",
+    item.course ?? "",
+    String(item.due ?? ""),
+    item.url ?? "",
+  ].join("|");
+}
 
 export async function refreshUserDeadlinesDetailed(userId: string): Promise<RefreshResult> {
   const retentionResult = await pool.query(
@@ -138,7 +118,7 @@ export async function refreshUserDeadlinesDetailed(userId: string): Promise<Refr
   const platformFields = sessions.rows.map((row) => {
     let fields: Fields | SessionData = {};
     try {
-      fields = decryptJson<SessionData | Fields>(row.encrypted_session);
+      fields = decryptStoredPlatformDataForUser(row.encrypted_session, userId) as SessionData | Fields;
     } catch {
       fields = {};
     }
@@ -169,7 +149,12 @@ export async function refreshUserDeadlinesDetailed(userId: string): Promise<Refr
   try {
     await client.query("begin");
     for (const result of results) {
-      if (result.expired) {
+      if (result.authMode === "credentials") {
+        await client.query(
+          "update platform_sessions set session_valid = null, session_checked_at = null where user_id = $1 and platform = $2",
+          [userId, result.platform]
+        );
+      } else if (result.expired) {
         await client.query(
           "update platform_sessions set session_valid = false, session_checked_at = now() where user_id = $1 and platform = $2",
           [userId, result.platform]
@@ -183,7 +168,28 @@ export async function refreshUserDeadlinesDetailed(userId: string): Promise<Refr
     }
 
     const successfulPlatforms = successfulResults.map((result) => result.platform);
+    const existingCompletedMap = new Map<string, boolean>();
     if (successfulPlatforms.length > 0) {
+      const existingRows = await client.query(
+        `
+        select platform, title, course, extract(epoch from due_at)::bigint as due, url, completed
+        from deadlines
+        where user_id = $1 and platform = any($2::text[])
+        `,
+        [userId, successfulPlatforms]
+      );
+
+      for (const row of existingRows.rows) {
+        const key = getDeadlineKey({
+          platform: row.platform,
+          title: row.title,
+          course: row.course,
+          due: Number(row.due),
+          url: row.url,
+        });
+        existingCompletedMap.set(key, Boolean(row.completed));
+      }
+
       await client.query(
         "delete from deadlines where user_id = $1 and platform = any($2::text[])",
         [userId, successfulPlatforms]
@@ -191,10 +197,14 @@ export async function refreshUserDeadlinesDetailed(userId: string): Promise<Refr
     }
 
     for (const item of items) {
+      const itemKey = getDeadlineKey(item);
+      const completed = isSubmittedStatus(item.status)
+        ? true
+        : Boolean(item.completed) || Boolean(existingCompletedMap.get(itemKey));
       await client.query(
         `
-        insert into deadlines (user_id, platform, title, course, due_at, status, url)
-        values ($1, $2, $3, $4, to_timestamp($5), $6, $7)
+        insert into deadlines (user_id, platform, title, course, due_at, status, completed, url)
+        values ($1, $2, $3, $4, to_timestamp($5), $6, $7, $8)
         `,
         [
           userId,
@@ -203,6 +213,7 @@ export async function refreshUserDeadlinesDetailed(userId: string): Promise<Refr
           item.course,
           item.due,
           item.status ?? null,
+          completed,
           item.url,
         ]
       );
