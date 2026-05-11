@@ -19,8 +19,8 @@ export type DeadlineItem = {
   title: string;
   course: string;
   due: number; // unix seconds
-  status?: string | null;
-  url?: string | null;
+  status?: string;
+  url?: string;
 };
 
 function cookieMapToHeader(cookies: CookieMap | string[] | undefined): string {
