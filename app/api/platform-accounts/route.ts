@@ -6,6 +6,11 @@ import {
   encryptCredentialsPayloadForUser,
   encryptSessionPayload,
 } from "@/lib/credential-vault";
+import fetchPlatform, {
+  loginBlackboardSession,
+  loginGradescopeSession,
+  loginHydroSession,
+} from "@/lib/fetch-ddls";
 
 type Fields = Record<string, string>;
 type AuthMode = "session" | "credentials";
@@ -16,25 +21,42 @@ type SaveItem ={
   authMode?: AuthMode;
 }
 
-const PLATFORM_API: Record<string, string> = {
-  Hydro: "/api/hydro",
-  Gradescope: "/api/gradescope",
-  Blackboard: "/api/blackboard",
-};
-
 const PLATFORM_REQUIRED_FIELDS: Record<string, string[]> = {
   Hydro: ["url", "username", "password"],
   Gradescope: ["email", "password"],
   Blackboard: ["studentid", "password"],
 };
 
-function getPythonBaseUrl() {
-  const base = process.env.PYTHON_API_BASE_URL ||
-    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:5000" : "");
-  if (!base) {
-    throw new Error("Missing PYTHON_API_BASE_URL");
+async function resolveSessionCookies(platform: string, fields: Fields) {
+  if (platform === "Hydro") {
+    const url = fields.url;
+    const username = fields.username;
+    const password = fields.password;
+    if (!url || !username || !password) {
+      throw new Error("Missing required fields for Hydro");
+    }
+    return loginHydroSession(url, username, password);
   }
-  return base;
+
+  if (platform === "Gradescope") {
+    const email = fields.email;
+    const password = fields.password;
+    if (!email || !password) {
+      throw new Error("Missing required fields for Gradescope");
+    }
+    return loginGradescopeSession(email, password);
+  }
+
+  if (platform === "Blackboard") {
+    const studentId = fields.studentid;
+    const password = fields.password;
+    if (!studentId || !password) {
+      throw new Error("Missing required fields for Blackboard");
+    }
+    return loginBlackboardSession(studentId, password);
+  }
+
+  throw new Error(`Unsupported platform: ${platform}`);
 }
 
 export async function GET(){
@@ -76,31 +98,9 @@ export async function POST(request: Request) {
     for (const item of items) {
       const fields = item.fields ?? {}
       const authMode: AuthMode = item.authMode === "credentials" ? "credentials" : "session"
-      const api = PLATFORM_API[item.platform]
       const requiredFields = PLATFORM_REQUIRED_FIELDS[item.platform] ?? []
-      if (!api) {
-        throw new Error(`Unsupported platform: ${item.platform}`)
-      }
       if (!requiredFields.every((key) => Boolean(fields[key]))) {
         throw new Error(`Missing required fields for ${item.platform}`)
-      }
-
-      const baseUrl = getPythonBaseUrl()
-      const payload = authMode === "session"
-        ? { ...fields, include_session: true }
-        : { ...fields }
-      const response = await fetch(`${baseUrl}${api}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to validate ${item.platform} account`)
-      }
-      const result = await response.json()
-      if (result?.status !== "success") {
-        throw new Error(`Failed to validate ${item.platform} account`)
       }
 
       let storedData: Record<string, unknown> = {}
@@ -108,14 +108,13 @@ export async function POST(request: Request) {
       let sessionCheckedAtSql = "now()"
 
       if (authMode === "session") {
-        if (!result?.session) {
-          throw new Error(`Failed to fetch session for ${item.platform}`)
-        }
+        const cookies = await resolveSessionCookies(item.platform, fields)
         storedData = item.platform === "Hydro"
-          ? { authMode, cookies: result.session, url: fields.url }
-          : { authMode, cookies: result.session }
+          ? { authMode, cookies, url: fields.url }
+          : { authMode, cookies }
         sessionValid = true
       } else {
+        await fetchPlatform(item.platform, fields)
         sessionValid = null
         sessionCheckedAtSql = "null"
       }

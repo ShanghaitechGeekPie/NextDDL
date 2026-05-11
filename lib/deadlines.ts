@@ -2,6 +2,7 @@ import "server-only";
 import { pool } from "@/lib/db";
 import { decryptStoredPlatformDataForUser } from "@/lib/credential-vault";
 import { isSubmittedStatus } from "@/lib/deadline-status";
+import fetchPlatform from "@/lib/fetch-ddls";
 
 type Fields = Record<string, string>;
 type AuthMode = "session" | "credentials";
@@ -30,39 +31,19 @@ export type DeadlineItem = {
   completed?: boolean;
 };
 
-const PLATFORM_API: Record<string, string> = {
-  Hydro: "/api/hydro",
-  Gradescope: "/api/gradescope",
-  Blackboard: "/api/blackboard",
-};
-
 const PLATFORM_REQUIRED_FIELDS: Record<string, string[]> = {
   Hydro: ["url", "username", "password"],
   Gradescope: ["email", "password"],
   Blackboard: ["studentid", "password"],
 };
 
-function getPythonBaseUrl() {
-  const base = process.env.PYTHON_API_BASE_URL ||
-    (process.env.NODE_ENV === "development" ? "http://127.0.0.1:5000" : "");
-  if (!base) {
-    throw new Error("Missing PYTHON_API_BASE_URL");
-  }
-  return base;
-}
-
 function hasRequiredFields(fields: Fields, required: string[]) {
   return required.every((key) => Boolean(fields[key]));
 }
 
 async function fetchPlatformDeadlines(platform: string, fields: Fields | SessionData): Promise<PlatformFetchResult> {
-  const api = PLATFORM_API[platform];
   const required = PLATFORM_REQUIRED_FIELDS[platform] || [];
   const authMode: AuthMode = (fields as SessionData).authMode === "credentials" ? "credentials" : "session";
-
-  if (!api) {
-    return { platform, authMode, items: [], expired: false, fetched: false };
-  }
 
   let payload: Record<string, unknown> = {};
   if ((fields as SessionData).cookies) {
@@ -81,35 +62,13 @@ async function fetchPlatformDeadlines(platform: string, fields: Fields | Session
     payload = fields as Fields;
   }
 
-  const baseUrl = getPythonBaseUrl();
-  let response: Response;
   try {
-    response = await fetch(`${baseUrl}${api}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const items = await fetchPlatform(platform, payload);
+    return { platform, authMode, items, expired: false, fetched: true };
   } catch {
-    return { platform, authMode, items: [], expired: false, fetched: false };
+    const expired = authMode === "session";
+    return { platform, authMode, items: [], expired, fetched: false };
   }
-
-  if (!response.ok) {
-    return { platform, authMode, items: [], expired: false, fetched: false };
-  }
-
-  const result = await response.json();
-  if (result?.status === "session_expired") {
-    return { platform, authMode, items: [], expired: true, fetched: false };
-  }
-  if (result?.status !== "success" || !Array.isArray(result.data)) {
-    return { platform, authMode, items: [], expired: false, fetched: false };
-  }
-
-  const items = result.data.map((item: DeadlineItem) => ({
-    ...item,
-    platform,
-  }));
-  return { platform, authMode, items, expired: false, fetched: true };
 }
 
 export type RefreshResult = {

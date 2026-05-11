@@ -1,0 +1,13 @@
+{
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".next",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "app/**/*.ts": {
+      "maxDuration": 60
+    }
+  },
+  "regions": ["iad1"]
+}
