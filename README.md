@@ -84,14 +84,6 @@ pnpm dev
 
 Open http://localhost:3000
 
-## Deployment
-
-Designed for serverless deployment on Vercel with Supabase PostgreSQL. For production deployment, refer to the official Vercel and Supabase documentation.
-
-## Useful Commands
-
-- Refresh DDLs: POST /api/refresh-deadlines (requires login)
-- Get ICS link: GET /api/ics-token (requires login)
 
 ## License
 
