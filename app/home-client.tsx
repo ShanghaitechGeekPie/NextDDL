@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import Image from 'next/image'
 import Typewriter from 'typewriter-effect'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,12 +9,10 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
-import { createEvents, EventAttributes } from 'ics'
 import Cookies from 'js-cookie'
 import { useRouter } from 'next/navigation'
 
-// Environment
-const env = process.env.NODE_ENV || 'development'
+// Types and constants
 type User = {
   nickname?: string
 } & Record<string, unknown>
@@ -55,12 +52,13 @@ const APIList = [
   },
 ]
 
-const initialFormValues: Record<string, Record<string, string>> = Object.fromEntries(
-  APIList.map((item) => [
-    item.name,
-    Object.fromEntries(item.formdata.map((field) => [field.name, ""])),
-  ])
-)
+// Note: initialFormValues could be used for form initialization if needed
+// const initialFormValues: Record<string, Record<string, string>> = Object.fromEntries(
+//   APIList.map((item) => [
+//     item.name,
+//     Object.fromEntries(item.formdata.map((field) => [field.name, ""])),
+//   ])
+// )
 
 interface DeadlineItem {
   id?: string
@@ -913,10 +911,10 @@ interface DeadlineCardProps {
 }
 
 function DeadlineCard({ item, isPast = false, onViewDetails, onEdit, onToggleCompleted }: DeadlineCardProps) {
-  const dueDate = new Date(Number(item.due) * 1000)
-  const isOverdue = item.due < Date.now() / 1000
-  const isCompleted = Boolean(item.completed)
   const now = Date.now()
+  const dueDate = new Date(Number(item.due) * 1000)
+  const isOverdue = item.due < now / 1000
+  const isCompleted = Boolean(item.completed)
   const timeUntilDue = item.due * 1000 - now
   const daysUntil = Math.floor(timeUntilDue / (1000 * 60 * 60 * 24))
   const hoursUntil = Math.floor((timeUntilDue % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))

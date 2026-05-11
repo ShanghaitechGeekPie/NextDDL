@@ -138,9 +138,9 @@ export async function POST(request: Request) {
 
     await client.query('commit')
     return NextResponse.json({ ok: true })
-  } catch (error) {
+  } catch (err) {
     await client.query('rollback')
-    console.error(error)
+    console.error(err)
     return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
   } finally {
     client.release()

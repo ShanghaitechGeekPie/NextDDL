@@ -480,7 +480,7 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
     return undefined;
   };
 
-  const parseStatus = (item: GradescopeAssignment): string | null => {
+  const parseStatus = (item: GradescopeAssignment): string | undefined => {
     const submission = item.submission && typeof item.submission === "object" ? (item.submission as Record<string, unknown>) : undefined;
     const text =
       firstString(submission, ["status"]) ||
@@ -492,7 +492,7 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
       return submitted ? "submitted" : "not submitted";
     }
 
-    return null;
+    return undefined;
   };
 
   const parseName = (item: Record<string, unknown>, fallbackKeys: string[]): string => {

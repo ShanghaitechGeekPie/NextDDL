@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     let tasks: Array<{ platform: string; fields: Record<string, unknown> }> = [];
     if (Array.isArray(body?.platforms)) {
-      tasks = body.platforms.map((item: any) => ({
+      tasks = body.platforms.map((item: Record<string, unknown>) => ({
         platform: item.platform,
         fields: item.fields ?? item,
       }));
