@@ -50,16 +50,32 @@ async function exchangeCodeForToken(code: string, origin: string) {
 
   const tokenRes = await fetch(`${serverUrl}/api/login/oauth/access_token`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json",
+    },
     body,
   });
 
-  const tokenJson = (await tokenRes.json()) as CasdoorTokenResponse;
+  const rawBody = await tokenRes.text();
+  let tokenJson: CasdoorTokenResponse = {};
+  try {
+    tokenJson = JSON.parse(rawBody) as CasdoorTokenResponse;
+  } catch {
+    tokenJson = {
+      error: `Non-JSON response from Casdoor token endpoint (status ${tokenRes.status})`,
+      error_description: rawBody.slice(0, 240),
+    };
+  }
   const accessToken = tokenJson.access_token ?? tokenJson.accessToken;
   const expiresIn = Number(tokenJson.expires_in);
 
   if (!tokenRes.ok || !accessToken) {
-    throw new Error(tokenJson.error_description || tokenJson.error || "Failed to exchange token");
+    throw new Error(
+      tokenJson.error_description ||
+      tokenJson.error ||
+      `Failed to exchange token (${tokenRes.status})`
+    );
   }
 
   return { accessToken, expiresIn: Number.isFinite(expiresIn) ? expiresIn : null };
@@ -100,54 +116,65 @@ function normalizeCasdoorUser(info: CasdoorUserInfo) {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
+  try {
+    const { searchParams } = new URL(request.url);
+    const code = searchParams.get("code");
 
-  if (!code) {
-    return NextResponse.json({ error: "Missing code" }, { status: 400 });
+    if (!code) {
+      return NextResponse.json({ error: "Missing code" }, { status: 400 });
+    }
+
+    const origin = getPublicOrigin(request);
+    const { accessToken, expiresIn } = await exchangeCodeForToken(code, origin);
+    const casdoorUserInfo = await fetchCasdoorUser(accessToken);
+    const casdoorUser = normalizeCasdoorUser(casdoorUserInfo);
+
+    const user = await pool.query(
+      `
+      insert into users (geekpie_id, nickname, avatar_url)
+      values ($1, $2, $3)
+      on conflict (geekpie_id)
+      do update set nickname = excluded.nickname, avatar_url = excluded.avatar_url
+      returning *
+      `,
+      [casdoorUser.id, casdoorUser.name || null, casdoorUser.avatar || null]
+    );
+
+    const userId = user.rows[0].id;
+
+    const sessionId = randomUUID();
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 7);
+    const casdoorExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+    await pool.query(
+      `
+      insert into sessions (id, user_id, expires_at, casdoor_access_token, casdoor_expires_at)
+      values ($1,$2,$3,$4,$5)
+      `,
+      [sessionId, userId, expires, accessToken, casdoorExpiresAt]
+    );
+
+    const response = NextResponse.redirect(new URL("/", origin));
+    const secureCookie = process.env.PUBLIC_BASE_URL?.startsWith("https://") ??
+      process.env.NODE_ENV === "production";
+
+    response.cookies.set("session", sessionId, {
+      httpOnly: true,
+      secure: secureCookie,
+      sameSite: "lax",
+      expires,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("Casdoor callback failed:", error);
+    return NextResponse.json(
+      {
+        error: "OAuth callback failed",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
-
-  const origin = getPublicOrigin(request);
-  const { accessToken, expiresIn } = await exchangeCodeForToken(code, origin);
-  const casdoorUserInfo = await fetchCasdoorUser(accessToken);
-  const casdoorUser = normalizeCasdoorUser(casdoorUserInfo);
-
-  const user = await pool.query(
-    `
-    insert into users (geekpie_id, nickname, avatar_url)
-    values ($1, $2, $3)
-    on conflict (geekpie_id)
-    do update set nickname = excluded.nickname, avatar_url = excluded.avatar_url
-    returning *
-    `,
-    [casdoorUser.id, casdoorUser.name || null, casdoorUser.avatar || null]
-  );
-
-  const userId = user.rows[0].id;
-
-  const sessionId = randomUUID();
-  const expires = new Date();
-  expires.setDate(expires.getDate() + 7);
-  const casdoorExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
-
-  await pool.query(
-    `
-    insert into sessions (id, user_id, expires_at, casdoor_access_token, casdoor_expires_at)
-    values ($1,$2,$3,$4,$5)
-    `,
-    [sessionId, userId, expires, accessToken, casdoorExpiresAt]
-  );
-
-  const response = NextResponse.redirect(new URL("/", origin));
-  const secureCookie = process.env.PUBLIC_BASE_URL?.startsWith("https://") ??
-    process.env.NODE_ENV === "production";
-
-  response.cookies.set("session", sessionId, {
-    httpOnly: true,
-    secure: secureCookie,
-    sameSite: "lax",
-    expires,
-  });
-
-  return response;
 }
