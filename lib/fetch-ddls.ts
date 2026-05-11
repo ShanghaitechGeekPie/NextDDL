@@ -20,7 +20,7 @@ export type DeadlineItem = {
   course: string;
   due: number; // unix seconds
   status?: string;
-  url?: string;
+  url: string;
 };
 
 function cookieMapToHeader(cookies: CookieMap | string[] | undefined): string {
