@@ -64,6 +64,7 @@ export default function SettingsClient({ user }: SettingsClientProps) {
   const [platformAuthMode, setPlatformAuthMode] = useState<Record<string, AuthMode>>({})
   const [editingAuthMode, setEditingAuthMode] = useState<AuthMode>('session')
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [retentionDays, setRetentionDays] = useState<string>('30')
   const [savingRetention, setSavingRetention] = useState(false)
 
@@ -166,6 +167,46 @@ export default function SettingsClient({ user }: SettingsClientProps) {
       toast.error('保存失败')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!editingPlatform) return
+    if (!configuredPlatforms.has(editingPlatform)) {
+      toast.error('当前平台尚未配置')
+      return
+    }
+
+    if (!window.confirm(`确认删除 ${editingPlatform} 已保存的凭据吗？`)) return
+
+    setDeleting(true)
+    try {
+      const res = await fetch('/api/platform-accounts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: editingPlatform })
+      })
+
+      if (!res.ok) throw new Error('Failed to delete')
+
+      setConfiguredPlatforms((prev) => {
+        const next = new Set(prev)
+        next.delete(editingPlatform)
+        return next
+      })
+      setPlatformAuthMode((prev) => {
+        const next = { ...prev }
+        delete next[editingPlatform]
+        return next
+      })
+
+      toast.success('已删除凭据')
+      closeDialog()
+    } catch (error) {
+      console.error(error)
+      toast.error('删除失败')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -374,6 +415,16 @@ export default function SettingsClient({ user }: SettingsClientProps) {
                 </Button>
                 <Button variant="outline" onClick={closeDialog} className="flex-1">
                   取消
+                </Button>
+              </div>
+              <div className="mt-3">
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="w-full"
+                >
+                  {deleting ? '删除中...' : '删除凭据'}
                 </Button>
               </div>
             </div>

@@ -146,3 +146,25 @@ export async function POST(request: Request) {
     client.release()
   }
 }
+
+export async function DELETE(request: Request) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await request.json().catch(() => ({}))
+  const platform = String(body?.platform || "").trim()
+  if (!platform) {
+    return NextResponse.json({ error: 'Missing platform' }, { status: 400 })
+  }
+
+  const result = await pool.query(
+    `delete from platform_sessions where user_id = $1 and platform = $2`,
+    [user.id, platform]
+  )
+
+  if (result.rowCount === 0) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({ ok: true })
+}
