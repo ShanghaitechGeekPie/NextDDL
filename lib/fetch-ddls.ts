@@ -21,6 +21,7 @@ export type DeadlineItem = {
   due: number; // unix seconds
   status?: string;
   url: string;
+  completed?: boolean;
 };
 
 function cookieMapToHeader(cookies: CookieMap | string[] | undefined): string {
@@ -460,38 +461,11 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
   };
 
   const parseSubmitted = (item: GradescopeAssignment): boolean | undefined => {
-    const submission = item.submission && typeof item.submission === "object" ? (item.submission as Record<string, unknown>) : undefined;
-    const candidates = [
-      submission?.submitted,
-      item.submitted,
-      item.is_submitted,
-      item.has_submission,
-      item.hasSubmission,
-      item.student_submission,
-      item.status,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === "boolean") return candidate;
-      const text = getString(candidate).toLowerCase();
-      if (!text) continue;
-      if (["submitted", "turned in", "complete", "completed", "yes", "true"].includes(text)) return true;
-      if (["not submitted", "no submission", "missing", "false", "no"].includes(text)) return false;
+    if (item.submission === null) return false;
+    if (item.submission && typeof item.submission === "object") {
+      const submission = item.submission as Record<string, unknown>;
+      if (typeof submission.submitted === "boolean") return submission.submitted;
     }
-    return undefined;
-  };
-
-  const parseStatus = (item: GradescopeAssignment): string | undefined => {
-    const submission = item.submission && typeof item.submission === "object" ? (item.submission as Record<string, unknown>) : undefined;
-    const text =
-      firstString(submission, ["status"]) ||
-      firstString(item, ["status", "submission_status", "grading_status", "submissionStatus"]);
-    if (text) return text;
-
-    const submitted = parseSubmitted(item);
-    if (typeof submitted === "boolean") {
-      return submitted ? "submitted" : "not submitted";
-    }
-
     return undefined;
   };
 
@@ -556,7 +530,6 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
   for (const course of courseRecords) {
     const courseId = firstString(course, ["id", "course_id", "courseId", "course_number", "courseNumber", "url"]);
     if (!courseId) continue;
-
     const courseName = parseName(course, ["short_name", "shortName", "course_name", "courseName", "display_name", "displayName"]) || courseId;
 
     const assignmentsPayload = await fetchJson(`/api/mobile/v1/courses/${encodeURIComponent(courseId)}/assignments`);
@@ -571,13 +544,22 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
       const title = parseName(assignment, ["assignment_title", "assignmentTitle", "display_name", "displayName"]);
       if (!title) continue;
 
+      const submitted = parseSubmitted(assignment);
+      const status = submitted === true
+        ? "Submitted"
+        : submitted === false
+          ? "Not Submitted"
+          : undefined;
+      const completed = submitted === true ? true : submitted === false ? false : undefined;
+
       const assignmentId = firstString(assignment, ["id", "assignment_id", "assignmentId"]);
       items.push({
         platform: "Gradescope",
         title,
         course: courseName,
         due,
-        status: parseStatus(assignment),
+        status,
+        completed,
         url: assignmentId ? `${base}/courses/${encodeURIComponent(courseId)}/assignments/${encodeURIComponent(assignmentId)}` : `${base}/courses/${encodeURIComponent(courseId)}`,
       });
     }

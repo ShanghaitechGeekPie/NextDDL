@@ -27,7 +27,6 @@ export type DeadlineItem = {
   due: number;
   status?: string;
   url: string;
-  submitted?: boolean;
   completed?: boolean;
 };
 

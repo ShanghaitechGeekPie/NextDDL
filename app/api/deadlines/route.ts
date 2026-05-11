@@ -10,7 +10,6 @@ type DeadlineItem = {
   due: number
   status?: string
   url: string
-  submitted?: boolean
   completed?: boolean
 }
 
@@ -30,8 +29,7 @@ export async function GET() {
 
   const items = result.rows.map((row) => {
     const due = Math.floor(new Date(row.due_at).getTime() / 1000)
-    const submitted = isSubmittedStatus(row.status)
-    const completed = Boolean(row.completed) || submitted
+    const completed = Boolean(row.completed) || isSubmittedStatus(row.status)
     return {
       id: row.id,
       platform: row.platform,
@@ -41,7 +39,6 @@ export async function GET() {
       status: row.status,
       completed,
       url: row.url,
-      submitted,
     }
   })
 
