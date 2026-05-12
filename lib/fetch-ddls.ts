@@ -598,11 +598,20 @@ export async function fetchBlackboard(fields: FetchDdlFields): Promise<DeadlineI
   const data = await resp.json();
   if (!Array.isArray(data)) return [];
 
+  const parseBlackboardEnd = (value: unknown): number => {
+    const raw = typeof value === "string" ? value : "";
+    if (!raw) return 0;
+    const hasTz = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+    const normalized = hasTz ? raw : `${raw}+08:00`;
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+  };
+
   return data.map((item: any) => ({
     platform: "Blackboard",
     title: item.title || "",
     course: item.calendarName || "",
-    due: item.end ? Math.floor(new Date(String(item.end)).getTime() / 1000) : 0,
+    due: parseBlackboardEnd(item.end),
     status: item.attemptable ? "Attemptable" : "Unattemptable",
     url: item.itemSourceId ? `${base}/webapps/calendar/launch/attempt/_blackboard.platform.gradebook2.GradableItem-${item.itemSourceId}` : null,
   } as DeadlineItem));
