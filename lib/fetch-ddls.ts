@@ -463,8 +463,7 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
   const parseSubmitted = (item: GradescopeAssignment): boolean | undefined => {
     if (item.submission === null) return false;
     if (item.submission && typeof item.submission === "object") {
-      const submission = item.submission as Record<string, unknown>;
-      if (typeof submission.submitted === "boolean") return submission.submitted;
+      return true;
     }
     return undefined;
   };
