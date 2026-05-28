@@ -381,7 +381,14 @@ export async function fetchHydro(fields: FetchDdlFields): Promise<DeadlineItem[]
       const course = assign[0] || item.domainName || item.domainId || "Hydro";
       const title = item.title || item.docTitle || item._id || "Untitled";
       let url = item.url || null;
-      if (typeof url === "string" && url && !url.startsWith("http")) url = base + url;
+      if (typeof url === "string" && url && !url.startsWith("http")) {
+        const baseUrl = new URL(base);
+        if (url.startsWith("/")) {
+          url = `${baseUrl.origin}${url}`;
+        } else {
+          url = `${base.replace(/\/$/, "")}/${url}`;
+        }
+      }
       return {
         platform: "Hydro",
         title,
@@ -403,7 +410,14 @@ export async function fetchHydro(fields: FetchDdlFields): Promise<DeadlineItem[]
       const course = assign[0] || item.domainName || item.domainId || "Hydro";
       const title = item.title || item.docTitle || item._id || "Untitled";
       let url = item.url || null;
-      if (typeof url === "string" && url && !url.startsWith("http")) url = base + url;
+      if (typeof url === "string" && url && !url.startsWith("http")) {
+        const baseUrl = new URL(base);
+        if (url.startsWith("/")) {
+          url = `${baseUrl.origin}${url}`;
+        } else {
+          url = `${base.replace(/\/$/, "")}/${url}`;
+        }
+      }
       return {
         platform: "Hydro",
         title,
