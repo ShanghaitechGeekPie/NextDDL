@@ -381,7 +381,14 @@ export async function fetchHydro(fields: FetchDdlFields): Promise<DeadlineItem[]
       const course = assign[0] || item.domainName || item.domainId || "Hydro";
       const title = item.title || item.docTitle || item._id || "Untitled";
       let url = item.url || null;
-      if (typeof url === "string" && url && !url.startsWith("http")) url = base + url;
+      if (typeof url === "string" && url && !url.startsWith("http")) {
+        const baseUrl = new URL(base);
+        if (url.startsWith("/")) {
+          url = `${baseUrl.origin}${url}`;
+        } else {
+          url = `${base.replace(/\/$/, "")}/${url}`;
+        }
+      }
       return {
         platform: "Hydro",
         title,
@@ -403,7 +410,14 @@ export async function fetchHydro(fields: FetchDdlFields): Promise<DeadlineItem[]
       const course = assign[0] || item.domainName || item.domainId || "Hydro";
       const title = item.title || item.docTitle || item._id || "Untitled";
       let url = item.url || null;
-      if (typeof url === "string" && url && !url.startsWith("http")) url = base + url;
+      if (typeof url === "string" && url && !url.startsWith("http")) {
+        const baseUrl = new URL(base);
+        if (url.startsWith("/")) {
+          url = `${baseUrl.origin}${url}`;
+        } else {
+          url = `${base.replace(/\/$/, "")}/${url}`;
+        }
+      }
       return {
         platform: "Hydro",
         title,
@@ -463,8 +477,7 @@ export async function fetchGradescope(fields: FetchDdlFields): Promise<DeadlineI
   const parseSubmitted = (item: GradescopeAssignment): boolean | undefined => {
     if (item.submission === null) return false;
     if (item.submission && typeof item.submission === "object") {
-      const submission = item.submission as Record<string, unknown>;
-      if (typeof submission.submitted === "boolean") return submission.submitted;
+      return true;
     }
     return undefined;
   };
@@ -598,11 +611,20 @@ export async function fetchBlackboard(fields: FetchDdlFields): Promise<DeadlineI
   const data = await resp.json();
   if (!Array.isArray(data)) return [];
 
+  const parseBlackboardEnd = (value: unknown): number => {
+    const raw = typeof value === "string" ? value : "";
+    if (!raw) return 0;
+    const hasTz = /Z$|[+-]\d{2}:?\d{2}$/.test(raw);
+    const normalized = hasTz ? raw : `${raw}+08:00`;
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : 0;
+  };
+
   return data.map((item: any) => ({
     platform: "Blackboard",
     title: item.title || "",
     course: item.calendarName || "",
-    due: item.end ? Math.floor(new Date(String(item.end)).getTime() / 1000) : 0,
+    due: parseBlackboardEnd(item.end),
     status: item.attemptable ? "Attemptable" : "Unattemptable",
     url: item.itemSourceId ? `${base}/webapps/calendar/launch/attempt/_blackboard.platform.gradebook2.GradableItem-${item.itemSourceId}` : null,
   } as DeadlineItem));
